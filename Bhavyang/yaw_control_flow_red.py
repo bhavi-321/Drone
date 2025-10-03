@@ -38,7 +38,7 @@ vehicle = connect(connection_string, wait_ready=True)
 def dist_2_angle(x, y, center_25, w, h):
     distance = (((center_25[0]-x))**2 + ((center_25[1] - y))**2)**0.5
     distance_x_axis = center_25[0]-x
-    angle = (90/center_25[0])*distance_x_axis
+    angle = (180/center_25[0])*distance_x_axis
     real_angle = angle
     return angle
 
@@ -71,12 +71,15 @@ def arm_and_takeoff(aTargetAltitude):
 #Arm and take of to altitude of 5 meters
 arm_and_takeoff(1.5)
 video = cv2.VideoCapture(0)
-def controll_yaw(angle, relative=True):
+def controll_yaw(angle, relative=False):
     if relative:
         is_relative = 1
     else:
         is_relative = 0
-        
+    if angle >= 0:
+        angle = abs(angle)
+    else:
+        angle = 360 + angle
     msg = vehicle.message_factory.command_long_encode(0, 0, mavutil.mavlink.MAV_CMD_CONDITION_YAW, 0, abs(angle), 0, 1, is_relative, 0, 0, 0)
     vehicle.send_mavlink(msg)
 
@@ -106,7 +109,7 @@ while True:
         ((x, y), radius) = cv2.minEnclosingCircle(c)
         cv2.circle(new_frame, (int(x), int(y)), int(radius), (0, 255, 0), 2)
         # print(x, y)
-        print(dist_2_angle(x, y, center_25, w, h))
+        print(dist_2_angle(x, y, center_25, w, h), vehicle.heading)
         controll_yaw(dist_2_angle(x, y, center_25, w, h))
         # print("object detected")
     center_25 = (int(w*0.25), int(h*0.75))

@@ -1,0 +1,178 @@
+import numpy as np  
+import cv2
+import time
+import math
+from pyzbar.pyzbar import decode  
+from dronekit import connect, VehicleMode, LocationGlobal, LocationGlobalRelative
+from pymavlink import mavutil
+
+import argparse
+parser = argparse.ArgumentParser(description='Command the vehicle using vehicle.simple_goto.')
+parser.add_argument('--connect',
+                    help="Vehicle connection target string. If it's not specified, SITL automatically starts and used.", default='127.0.0.1:14550')
+args = parser.parse_args()
+
+connection_string = args.connect
+sitl = None
+
+# If no connection_string is specified
+if not connection_string:
+    import dronekit_sitl
+    sitl = dronekit_sitl.start_default()
+    connection_string = sitl.connection_string()
+
+print('Connect to the vehicle on: %s' % connection_string)
+vehicle = connect(connection_string, wait_ready=True)
+
+def arm_and_takeoff(target_altitude):
+    while not vehicle.is_armable:
+        time.sleep(1)
+
+    vehicle.mode = VehicleMode("GUIDED")   #Arm the copter in guided mode only
+    vehicle.armed = True
+
+    while not vehicle.armed:
+        print(" Waiting for arming...")    #Confirm arming before take-off 
+        time.sleep(1)
+
+    vehicle.simple_takeoff(target_altitude) #take-off to the target altitude 
+
+    while True:
+        print(" Altitude: ", vehicle.location.global_relative_frame.alt)
+        
+        while vehicle.location.global_relative_frame.alt < target_altitude * 0.97:
+            time.sleep(1)
+
+arm_and_takeoff(10)
+
+#rotate (yaw) to a certain heading using a MAVLink command
+def condition_yaw(heading, is_relative, direction):
+    
+    # create the CONDITION_YAW command using command_long_encode()
+    msg = vehicle.message_factory.command_long_encode(
+        0, 0,                     
+        mavutil.mavlink.MAV_CMD_CONDITION_YAW, 
+        0,                        
+        heading,                  # yaw angle in degrees 
+        0,                         
+        direction,                # clockwise = 1, anti-cwc = -1
+        is_relative,              # relative = 1, absolute angle = 0
+        0, 0, 0)                  
+    
+    vehicle.send_mavlink(msg)
+
+# move in a specific direction using Velocity instead of GPS coordinates
+def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration):
+    
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0,                                    # time_boot not used
+        0, 0,    
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED,  
+        0b0000111111000111,                   # type_mask 
+        0, 0, 0,                              # position not used
+        velocity_x, velocity_y, velocity_z,   
+        0, 0, 0,                              # acceleration not used
+        0, 0)        
+
+# getting source qr data
+def get_qr_data(input_frame):
+    try:
+        return decode(input_frame)
+    except:
+        return []
+
+def check_qr(img_path):
+    img = cv2.imread(img_path)
+    qr_codes = decode(img)
+    if qr_codes:
+        for qr in qr_codes:
+            check_qr_data = qr.data.decode('utf-8')
+            
+    return check_qr_data
+
+ourtarget_qr = check_qr("qr.jpg")  
+
+#open webcam
+video = cv2.VideoCapture(0)
+if not video.isOpened():
+    print("Error: Could not open video.")
+    vehicle.mode = VehicleMode("RTL")
+    vehicle.close()
+    exit()          
+
+while True:
+    ret, in_fr = video.read()
+    h, w, channel = in_fr.shape
+    fr_center = (int(w/2), int(h/2))   # reducing the height and width to one-half values
+
+    if not ret:
+        print("Error: Frame not read.")
+        break
+
+    code = get_qr_data(in_fr)
+    if len(code) != 0:
+        for obj in code:
+            text = obj.data.decode('utf-8')
+            pts = np.array([obj.polygon], np.int32)           # numpy library
+            pts = pts.reshape((4, 1, 2))                                    
+            cv2.polylines(in_fr, [pts], True, (255, 100, 5), 2)
+
+
+            A = cv2.moments(pts)
+            if A['m00'] != 0:
+                qr_x = int(A['m10'] / A['m00'])
+                qr_y = int(A['m01'] / A['m00'])
+                cv2.circle(in_fr, (qr_x, qr_y), int(1), (0, 255, 0), 2)
+
+            fx , fy = in_fr.shape[1]//2, in_fr.shape[0]//2
+
+            # error in x,y
+            error_x = qr_x - fx                       
+            error_y = qr_y - fy                       
+
+            if text == ourtarget_qr:
+                print("Target QR detected")
+                if abs(error_x) > 40:   
+                    if error_x < 0:
+                        print("Move left (roll left)")
+                        send_ned_velocity(0, -0.4, 0, 1)   
+                        # optional: small yaw to face QR
+                        condition_yaw(2, is_relative=1, direction=-1)
+                    else:
+                        print("Move right (roll right)")
+                        send_ned_velocity(0, 0.4, 0, 1)    
+                        condition_yaw(2, is_relative=1, direction=1)
+
+        
+                if abs(error_y) > 40:
+                # if the error is significant, adjust altitude
+                    if error_y < 0:
+                        print("Moving up...")
+                        send_ned_velocity(0, 0, -0.3, 1)
+                    
+                    else:
+                        print("Moving down...")
+                        send_ned_velocity(0, 0, 0.3, 1)
+
+                cv2.putText(in_fr, text, (50, 50), cv2.FONT_HERSHEY_PLAIN,1.5,(255,100,5),2)
+            else:
+                print("QR not matched")
+                inc = "QR not matched"
+                cv2.putText(in_fr, inc, (50, 50), cv2.FONT_HERSHEY_PLAIN,1.5,(255,100,5),2)
+
+    # show the qr
+    cv2.imshow("QR follow",in_fr)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):                                            
+        break
+
+# RTL after loop breaks/ends
+print("Returning to Launch...")
+vehicle.mode = VehicleMode("RTL")
+
+video.release()
+cv2.destroyAllWindows()
+vehicle.close()
+
+if sitl:
+    sitl.stop()

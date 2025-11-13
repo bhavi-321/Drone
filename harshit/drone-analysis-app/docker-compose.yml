@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    ports: 
+      - '27018:27017'
+    volumes:
+      - mongo-data:/data/db
+  
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+  
+  backend:
+    build: ./backend
+    ports:
+      - '8000:8000'
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/drone
+      - MQTT_BROKER=mosquitto
+      - JWT_SECRET=change_me
+    depends_on:
+      - mongo
+      - mosquitto
+volumes:
+  mongo-data:
+
+

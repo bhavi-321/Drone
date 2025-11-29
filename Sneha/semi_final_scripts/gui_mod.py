@@ -289,6 +289,8 @@ class QRDetector:
         cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
         cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
         cv2.line(frame, (cx, cy), (x, y), (255, 0, 0), 2)
+        cv2.rectangle(frame, (int(vertices[0][0]), int(vertices[0][1])),
+                     (int(vertices[2][0]), int(vertices[2][1])), (0, 255, 0), 2)
         
         # Draw region circles
         cv2.circle(frame, (cx, cy), in_area, (255, 0, 0), 2)

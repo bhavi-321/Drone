@@ -702,6 +702,26 @@ class DroneControlGUI:
             font=("Arial", 9)
         )
         self.camera_type_combo.grid(row=2, column=1, sticky="ew", padx=(10, 0), pady=5)
+
+        # choosing centering algorithm
+        tk.Label(
+            conn_panel,
+            text="Centering Algorithm:",
+            fg=self.colors["text"],
+            bg=self.colors["bg_medium"],
+            font=("Arial", 9)
+        ).grid(row=3, column=0, sticky="w", pady=5)
+        
+        self.centering_algo_var = tk.StringVar(value="Region Based")
+        self.centering_algo_combo = ModernCombobox(
+            conn_panel,
+            textvariable=self.centering_algo_var,
+            values=["Region Based", "PID Based"],
+            state="readonly",
+            width=25,
+            font=("Arial", 9)
+        )
+        self.centering_algo_combo.grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=5)
         
         conn_panel.columnconfigure(1, weight=1)
         
@@ -777,29 +797,8 @@ class DroneControlGUI:
             wraplength=300
         )
         self.qr_status_label.pack(fill="x")
-        
-        # choosing centering algorithm
-        tk.Label(
-            qr_panel,
-            text="Centering Algorithm:",
-            fg=self.colors["text"],
-            bg=self.colors["bg_medium"],
-            font=("Arial", 9)
-        ).pack(anchor="w", pady=(10, 5))
-        
-        self.centering_algo_var = tk.StringVar(value="Region Based")
-        self.centering_algo_combo = ModernCombobox(
-            qr_panel,
-            textvariable=self.centering_algo_var,
-            values=["Region Based", "PID Based"],
-            state="readonly",
-            width=25,
-            font=("Arial", 9)
-        )
-        self.centering_algo_combo.pack(side="left", expand=True, fill="x", padx=(0, 5))
 
         # Manual QR entry
-        '''
         tk.Label(
             qr_panel,
             text="Or enter QR data manually:",
@@ -827,7 +826,7 @@ class DroneControlGUI:
             fg=self.colors["text"]
         )
         self.set_qr_btn.pack(side="left")
-        '''
+        
         # Control buttons
         button_frame = tk.Frame(left_panel, bg=self.colors["bg_dark"])
         button_frame.pack(fill="x", pady=10)
@@ -1015,7 +1014,6 @@ class DroneControlGUI:
                 )
                 messagebox.showerror("Error", f"Failed to load QR code: {str(e)}")
     
-    '''
     def set_manual_qr(self):
         """Set QR code data manually"""
         qr_data = self.manual_qr_entry.get().strip()
@@ -1034,7 +1032,6 @@ class DroneControlGUI:
             self.log_message(f"Expected QR code set to: {qr_data}")
         else:
             messagebox.showwarning("Warning", "Please enter QR code data!")
-    '''
 
     def set_algorithm(self, algo_name):
         """Set centering algorithm"""

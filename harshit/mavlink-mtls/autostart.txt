@@ -1,0 +1,28 @@
+for autostarting the whole process again and agagin do the following checklist once:-
+
+1) for gcs(laptop side):-
+
+create a .bat file:-
+C:\Users\HP\mavlink-mtls\start_gcs.bat
+
+inside start_gcs.bat file type:-
+
+cd C:\Users\HP\mavlink-mtls
+call venv\Scripts\activate
+py gcs_server_final.py
+
+
+then after this click windows+R ----> shell:startup & paste the start_gcs.bat file inside it 
+
+
+2) for drone/rpi side :-
+
+in terminal type:-
+sudo nano /etc/rc.local
+
+add this before exit(0):-
+python3 /home/pi/drone_client_final.py & (here path of drone_client_final.py file will come)
+then ctrl + o , ctrl + x.
+
+
+
